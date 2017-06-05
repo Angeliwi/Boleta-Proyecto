@@ -1,7 +1,5 @@
 <?php
-
 require_once("procesos/lib/xmlseclibs/XmlseclibsAdapter.php");
-
 if($argv[2]=="VENTA")
 {
 	require_once("procesos/lib/IECV/IEV.php");
@@ -29,7 +27,6 @@ require_once("procesos/lib/SII.php");
 
 date_default_timezone_set('America/Santiago');
 
-
 $carpeta=$argv[1];
 //Leo directorio fuente
 $fuente="data/libros/$carpeta/";
@@ -37,25 +34,27 @@ $fuente_cfg="procesos/config/$carpeta/config.ini";
 $directorio = opendir($fuente);
 $archivoConfig = parse_ini_file($fuente_cfg, true);
 $archivoTemp=$archivoConfig["generales"]["ruta"].'\procesos\pejec.eje';
+$debug=$archivoConfig["opcionales"]["debug"];
 $arcFuente="";
 $ficheroLog = "data/dte/$carpeta/log_".date("Ymd").".log";
 
-if(file_exists($archivoTemp))
-{
-    if($debug==1)
-
-		error_reporting(E_ALL);
-		ini_set('error_reporting', E_ALL);
-		ini_set('display_errors',1);
-
-        echo "Procesando Libros....\n";
+    if(file_exists($archivoTemp))
+    {
+        if($debug==1)
+        {
+    		error_reporting(E_ALL);
+    		ini_set('error_reporting', E_ALL);
+    		ini_set('display_errors',1);
+            echo "Procesando Libros....\n";    
+        exit("Procesando Libros....\r");
+        }
+        else
+        {
+                $f=fopen($archivoTemp,'w+');
+                fwrite($f,'ejecutandose');
+                fclose($f);
+        }
     }
-    exit("Procesando Libros....\r");
-}else{
-    $f=fopen($archivoTemp,'w+');
-    fwrite($f,'ejecutandose');
-    fclose($f);
-}
 
 //obtenemos un archivo y luego otro sucesivamente
 while ($archivo = readdir($directorio)){
@@ -101,7 +100,7 @@ while ($archivo = readdir($directorio)){
                         echo "Proceso Libro de Boletas";
                     }
                     escribeLog("Proceso Libro de Boletas $arcFuente");
-                    procLibroBoletas();  
+                    procLibroBoletas();
                     break;
 				default:
 					echo "No se encontro el tipo de libro ".$tipoLibroFile;
@@ -109,15 +108,13 @@ while ($archivo = readdir($directorio)){
 			}
 			unlink($arcFuente);
 			unlink($archivoTemp);
-		}else{
-			unlink($archivoTemp);
 		}
 	}
 }
 
-//agregando el nuevo metodo para procesar el libro de boletas
-    function procLibroBoletas($tipo_doc)
-    {
+//*************************agregando el nuevo metodo para procesar el libro de boletas****************************************
+	function procLibroBoletas()
+	{
         global $arcFuente,$archivoConfig,$carpeta;
         $linea=0;
         $LibroSinMovimiento=false;
@@ -132,9 +129,256 @@ while ($archivo = readdir($directorio)){
         $contenido_fichero = fread($fp, filesize($arcFuente));  
         $contenido_fichero=str_replace("\n","",$contenido_fichero);
         $contenido_fichero=str_replace("[","",$contenido_fichero);
+        $array_lineas = explode("]",$contenido_fichero);
 
+        for($l=0;$l<=count($array_lineas)-1;$l++)
+        {
+                if($l==0)
+                {                   
+                    if($debug==1)
+                    {
+                        echo "\tProceso Caratula\n";
+                    }
+                    escribeLog("Proceso Caratula ");
+                    $array_caratula = explode(";",$array_lineas[$l]);
+
+                }
+                else if($l==1)
+                {
+                    if($debug==1)
+                    {
+                        echo "\tProceso Detalle\n";
+                    }
+                    escribeLog("Proceso Detalle ");
+
+                    $array_linea_detalle = explode("~",str_replace(explode(",","\r,"),"",$array_lineas[$l]));                    
+
+                    for($ld=0;$ld<=count($array_linea_detalle)-1;$ld++)
+                    {
+
+                        $array_valores_detalle[] = $array_linea_detalle[$ld];
+
+                    }
+
+                    for($d=0;$d<=count($array_valores_detalle)-1;$d++)
+                    {
+                        $array_detalle = explode(";",$array_valores_detalle[$d]);
+                    }
+
+                }
+                else if($l==2)
+                {
+                    if($debug==1)
+                    {
+                        echo "\tProceso RESUMEN\n";
+                    }
+                    escribeLog("Proceso RESUMEN");
+                    $array_linea_resumen = explode("~",str_replace(explode(",","\r,"),"",$array_lineas[$l]));
+
+                    for($lr=0;$lr<=count($array_linea_resumen)-1;$lr++)
+                    {
+                        $array_valores_resumen[] = $array_linea_resumen[$lr];
+                    }
+            }
+
+        }
+
+    fclose($fp);
+
+    if($l==0)
+    {
+        $LibroSinMovimiento=true;
+    }
+     /*PROCESO GENERADOR DEL DOCUMENTO*/
+    $LIBRO = new IEB();
+    $EnvioLibro = new EnvioLibro();
+    $EnvioLibro->setCaratula();
+    $EnvioLibro->Caratula->setRutEmisorLibro($rut_emisor);
+    $EnvioLibro->Caratula->setRutEnvia($rut_envia);
+    $EnvioLibro->Caratula->setPeriodoTributario($array_caratula[2]);
+    $EnvioLibro->Caratula->setFchResol($FchResol);
+    $EnvioLibro->Caratula->setNroResol($NumResol);
+    $EnvioLibro->Caratula->setTipoLibro("ESPECIAL");//$array_caratula[5]);
+    $EnvioLibro->Caratula->setTipoEnvio($array_caratula[6]);    
+    //if($array_caratula[6]=="ESPECIAL"){
+        $EnvioLibro->Caratula->setFolioNotificacion('1');
+    //}
+    if(!$LibroSinMovimiento)
+    {
+
+        //Resumen
+
+        $EnvioLibro->setResumenPeriodo();
+        for($lr=0;$lr<=count($array_valores_resumen)-1;$lr++)
+        {
+            $array_resumen = explode(";",$array_valores_resumen[$lr]);           
+
+            //Resumen
+            $Totales = new TotalesPeriodo;
+            for($r=0;$r<=count($array_valores_resumen)-1;$r++)
+            {
+
+                $Totales->setTpoDoc(trim($array_resumen[0]));
+
+                if(intval($array_resumen[1])>0){$Totales->setTotAnulado($array_resumen[1]);}
+
+                $Totales_Servicio = new TotalesServicio;
+
+                    if(intval($array_resumen[2])>0){$Totales_Servicio->setTpoServ($array_resumen[2]);}
+
+                    if(intval($array_resumen[3])>0){$Totales_Servicio->setPeriodoDevengado($array_resumen[3]);}
+
+                    $Totales_Servicio->setTotDoc($array_resumen[4]);
+
+                    $Totales_Servicio->setTotMntExe(strval(round(($array_resumen[5]!="")?$array_resumen[5]:"0")));
+
+                    $Totales_Servicio->setTotMntNeto(strval(round(($array_resumen[6]!="")?$array_resumen[6]:"0")));
+
+                    $Totales_Servicio->setTasaIVA($array_resumen[7]);
+
+                    $Totales_Servicio->setTotMntIVA(strval(round(($array_resumen[8]!="")?$array_resumen[8]:"0")));
+
+                    $Totales_Servicio->setTotMntTotal(strval(round(($array_resumen[9]!="")?$array_resumen[9]:"0")));
+
+                    if(intval($array_resumen[10]>0)){$Totales_Servicio->setTotMntNoFact($array_resumen[10]);}
+
+                    if(intval($array_resumen[11]>0)){$Totales_Servicio->setTotMntPeriodo($array_resumen[11]);}
+
+                    if(intval($array_resumen[12]>0)){$Totales_Servicio->setTotSaldoAnt($array_resumen[12]);}
+
+                    if(intval($array_resumen[13]>0)){$Totales_Servicio->setTotVlrPagar($array_resumen[13]);}
+
+                    if(intval($array_resumen[15]>0)){$Totales_Servicio->setTotTicket($array_resumen[15]);}
+
+                $Totales->setTotalesServicio($Totales_Servicio);
+
+            }
+
+            $EnvioLibro->ResumenPeriodo->setTotalesPeriodos($Totales);     
+
+        }
+
+
+
+        for($lr=0;$lr<=count($array_valores_detalle)-1;$lr++)
+        {
+
+            $array_detalle = explode(";",$array_valores_detalle[$lr]);
+
+            //Detalle
+
+            $Detalle = new Detalle;
+
+            for($r=0;$r<=count($array_valores_detalle)-1;$r++){
+
+                $Detalle->setTpoDoc(trim($array_detalle[0]));$aDetalle["TpoDoc"][]=trim($array_detalle[0]);
+
+                $Detalle->setFolioDoc($array_detalle[1]);$aDetalle["NroDoc"][]=trim($array_detalle[1]);
+
+                if($array_detalle[2]!=""){ $Detalle->setAnulado($array_detalle[2]);}
+
+                $Detalle->setTpoServ($array_detalle[3]);
+
+                $Detalle->setFchEmiDoc($array_detalle[4]);
+
+                if($array_detalle[5]!=""){$Detalle->setFchVencDoc($array_detalle[5]);}
+
+                If($array_detalle[6]!=""){$Detalle->setPeriodoDesde($array_detalle[6]);}
+
+                if($array_detalle[7]!=""){$Detalle->setPeriodoHasta($array_detalle[7]);}
+
+                If($array_detalle[8]!=""){$Detalle->setCdgSIISucur($array_detalle[7]);}
+
+                $Detalle->setRUTCliente($array_detalle[9]);
+
+                If($array_detalle[10]!=""){$Detalle->setCodIntCli($array_detalle[10]);}
+
+                $Detalle->setMntExe(strval(round(($array_detalle[11]!="")?$array_detalle[11]:"0")));
+
+                if(intval($array_detalle[12]>0)){$Detalle->setMntTotal($array_detalle[12]);}
+
+                if(intval($array_detalle[13])>0){$Detalle->setMntNoFact($array_detalle[13]);}
+
+                if(intval($array_detalle[13]>0)){$Detalle->setMntPeriodo($array_detalle[13]);}
+
+                if(intval($array_detalle[13]>0)){$Detalle->setSaldoAnt($array_detalle[13]);}
+
+                $Detalle->setVlrPagar(strval(round(($array_detalle[14]!="")?$array_detalle[14]:"0")));
+
+                if(intval($array_detalle[15]>0)){$Detalle->setTotTicketBoleta($array_detalle[15]);}
+
+            }
+
+            $EnvioLibro->setDetalle($Detalle);     
+
+
+
+        }
 
     }
+    $EnvioLibro->setTmstFirma($TmstFirma);
+    $idLibro = "EnvLbrBoleta-".$array_caratula[2];
+    $obj = new ObjectAndXML($idLibro, substr($rut_emisor,0,-2),"boleta");
+    $obj->setStartElement("LibroBoleta");
+    $obj->setId($idLibro);
+    $LIBRO->setEnvioLibro($EnvioLibro);
+    utf8_encode_deep($LIBRO);
+    $recordsXML = $obj->objToXML($LIBRO);
+    $IECV_TIMBRE = new DOMDocument();
+    $IECV_TIMBRE->formatOutput = FALSE;
+    $IECV_TIMBRE->preserveWhiteSpace = TRUE;
+    $IECV_TIMBRE->load("procesos/xml_libros/".substr($rut_emisor,0,-2)."/boleta/".$obj->getId().".xml");
+    $IECV_TIMBRE->encoding = "ISO-8859-1";
+    $xmlTool = new FR3D\XmlDSig\Adapter\XmlseclibsAdapter();
+    $pfx = file_get_contents(dirname(__FILE__) . "/certificado/".substr($rut_emisor,0,-2)."/".$archivoConfig["generales"]["certificado"]);
+    openssl_pkcs12_read($pfx, $key,$archivoConfig["generales"]["clavefirma"] );  
+    $xmlTool->setPrivateKey($key["pkey"]);
+    $xmlTool->setpublickey($key["cert"]);
+    $xmlTool->addTransform(FR3D\XmlDSig\Adapter\XmlseclibsAdapter::ENVELOPED);
+    $xmlTool->sign($IECV_TIMBRE, "LIBRO");
+    //ojo aca, crear carpeta boleta
+    $IECV_TIMBRE->save("procesos/xml_libros/".substr($rut_emisor,0,-2)."/boleta/".$obj->getId().".xml");
+    $xmlv = new DOMDocument();
+    //crear la carpeta boleta plz 
+    $xmlv->load("procesos/xml_libros/".substr($rut_emisor,0,-2)."/boleta/".$obj->getId().".xml");
+    if($archivoConfig["opcionales"]["validacion"]==1)
+    {
+        if (!$xmlv->schemaValidate('procesos/validaciones/LibroBOLETA_v10.xsd')) 
+        {
+            libxml_display_errors();
+            $msg="ERROR DE VALIDACION REVISE EL LOG";
+        }
+        else
+        {
+            $msg="SCHEMA OK LIBRO GENERADO";
+        }
+    }
+    escribeLog("**EOP**|$msg");
+        $model["RutEnvia"]=$rut_envia;
+        $model["RutEmisor"]=$rut_emisor;
+        $model["SetDTE_ID"]=$obj->getId();
+        $model["clavefirma"]=$archivoConfig["generales"]["clavefirma"];
+        $model["certificado"]=$archivoConfig["generales"]["certificado"];
+        $model["tipoLibro"]="boleta";
+        $model["carpeta"]=$carpeta;
+        $model["ambiente"]=$archivoConfig["opcionales"]["ambiente"];
+        $trackId=0;$intentos=1;
+        
+        while(intval($trackId)==0 and $intentos<=5)
+        {
+            escribeLog("Intentando subir libro de boleta a SII [".$intentos."]");
+            $resultado = enviarIECVAlSii($model);
+            $aRes=explode("|",$resultado);
+            $trackId=$aRes[0];
+            $intentos++;
+            sleep(5);
+        }
+        $aRes=explode("|",$resultado);
+        escribeLog("**EOP**|".$aRes[1]."|".$aRes[2]."-".$aRes[0]);
+
+
+//                              *********************************fin proceso libro boletas************************************
+}
 
 function procLibroVenta($tipo_doc){
 
