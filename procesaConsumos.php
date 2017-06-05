@@ -6,7 +6,7 @@
 		require_once("procesos/lib/xmlseclibs/XmlseclibsAdapter.php");
 		require_once("procesos/lib/CONSUMO/ConsumoFolios.php");
 		require_once("procesos/lib/CONSUMO/DocumentoConsumoFolios.php");
-		require_once("procesos/lib/ObjectAndXML.php");
+		require_once("procesos/lib/CONSUMO/ObjectAndXML.php");
 		require_once("procesos/lib/SII.php");
 		require_once("procesos/lib/Funciones.php");
 
@@ -24,6 +24,7 @@
 		$fuente="data/cFolios/$carpeta/";
 		$directorio = opendir($fuente);
 		$numDocs=0;
+		$correlativo = 1;
 		
 		if(file_exists($archivoTemp))
 		{
@@ -77,6 +78,7 @@
 	    $rut_envia=$archivoConfig["contribuyente"]["RUTRL"];
 	    $FchResol=$archivoConfig["contribuyente"]["FECRESOL"];
 	    $NumResol=$archivoConfig["contribuyente"]["NUMRESOL"];
+	    
 	    $timezone = new DateTimeZone('America/Santiago'); 
 	    $date = new DateTime('', $timezone);
 	    $TmstFirma = $date->format('Y-m-d\TH:i:s');
@@ -131,7 +133,8 @@
 		    $consumo->Caratula->setFchResol($FchResol);
 		    $consumo->Caratula->setNroResol($NumResol);
 		    $consumo->Caratula->setFchInicio($array_caratula[4]);
-		    $consumo->Caratula->setFchFinal($array_caratula[5]);
+		    $consumo->Caratula->setFchFinal($array_caratula[5]);		    
+		    $consumo->Caratula->setCorrelativo($array_caratula[8]);
 		    $consumo->Caratula->setSecEnvio($array_caratula[6]);
 		    $consumo->Caratula->setTmstFirmaEnv($TmstFirma);
 
@@ -147,14 +150,14 @@
 		    $consumo->Resumen->setFoliosAnulados($array_detalle[7]);
 		    $consumo->Resumen->setFoliosUtilizados($array_detalle[8]);
 		    
-		    
-		    //error aca
+		    		   
 			if (intval($array_detalle[9])>0)
 			{
-			 	$rangoUtil = new RangoUtilizados();
-			 	$rangoUtil->setInicial($array_detalle[9]);
-			 	$rangoUtil->setFinal($array_detalle[10]);
-			 	$consumo->Resumen->setRangoUtilizados($rangoUtil);
+			 	$rangoUtil = new RangoUtilizados();			 				 	
+			 	$consumo->Resumen->setRangoUtilizados();
+			 	$consumo->Resumen->RangoUtilizados->setInicial($array_detalle[9]);
+			 	$consumo->Resumen->RangoUtilizados->setFinal($array_detalle[10]);
+			 				 	
 			}
 			
 		
@@ -162,13 +165,14 @@
 			if (intval($array_detalle[11])>0)
 			{
 				$rangoAnul = new RangoAnulados();
-				$rangoAnul->setInicial($array_detalle[11]);
-				$rangoAnul->setFinal($array_detalle[12]);
-				$consumo->Resumen->setRangoAnulados($rangoAnul);
+				$consumo->Resumen->setRangoAnulados();
+				$consumo->Resumen->RangoAnulados->setInicial($array_detalle[11]);				
+				$consumo->Resumen->RangoAnulados->setFinal($array_detalle[12]);
+				
 			}		    
 		    //$consumo -> setResumen();
 		    //$consumo->setTmstFirma($TmstFirma);
-		    $idConsumo = "EnvioConsumo-".$array_caratula[2];
+		    $idConsumo = "RCOF-".$array_caratula[2];
 		    $obj = new ObjectAndXML($idConsumo, substr($rut_emisor,0,-2),"ConsumoFolios");
 		    $obj->setStartElement("ConsumoFolios");
 		    $obj->setId($idConsumo);
@@ -179,7 +183,7 @@
 		    $RCOF_TIMBRE = new DOMDocument();
 		    $RCOF_TIMBRE->formatOutput = FALSE;
 		    $RCOF_TIMBRE->preserveWhiteSpace = TRUE;
-		    $RCOF_TIMBRE->loadXML("xml_respuestas/".substr($rut_emisor,0,-2)."/".$obj->getId().".xml");
+		    $RCOF_TIMBRE->load("procesos/xml_respuestas/".substr($rut_emisor,0,-2)."/".$obj->getId().".xml");
 		    
 		    $RCOF_TIMBRE->encoding = "ISO-8859-1";
 		    $xmlTool = new FR3D\XmlDSig\Adapter\XmlseclibsAdapter();
@@ -191,7 +195,7 @@
 		    $xmlTool->setpublickey($key["cert"]);
 		    $xmlTool->addTransform(FR3D\XmlDSig\Adapter\XmlseclibsAdapter::ENVELOPED);
 		    $xmlTool->sign($RCOF_TIMBRE, "RCOF");
-		    $RCOF_TIMBRE->save("xml_respuestas/".substr($rut_emisor,0,-2)."/".$obj->getId().".xml");
+		    $RCOF_TIMBRE->save("procesos/xml_respuestas/".substr($rut_emisor,0,-2)."/".$obj->getId().".xml");
 		    
 			libxml_use_internal_errors(true);
 		

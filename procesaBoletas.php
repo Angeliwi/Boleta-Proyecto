@@ -81,7 +81,8 @@
 							                    }
 							                    escribeLog("Proceso boleta Exenta Electronica",$ficheroLog);
 							                    break;
-							              
+							                
+
 							                default:
 							                    $msg="No se encontro el tipo de documento ".str_replace("[","",$array_archivo[0])." Archivo Fuente: $arcFuente";
 							                    //enviaMail("[facelecws]Error en el proceso", $msg, $carpeta);
@@ -461,7 +462,7 @@
 				
 				switch($tipo_doc)
 				{
-					case "39":
+					case "41":
 					//$Documento->Encabezado->Totales->setMntNeto(trim(round($montoNeto)));
 					if($montoExento!="")
 					{
@@ -575,7 +576,7 @@
 					$TSTED = $DTE_TIMBRE->getElementsByTagName("TSTED")->item(0);
 					//var_dump($TSTED);
 					$TSTED->parentNode->insertBefore($import, $TSTED);
-	$total = 0;
+					$total = 0;
 					//Detalle del timbre
 					$DD2 = "<DD><RE>".$Documento->Encabezado->Emisor->getRUTEmisor()."</RE><TD>" . $tipo_documento ."</TD><F>" . $folio_documento . "</F><FE>".$fecha_emision."</FE><RR>" . $rut_receptor . "</RR><RSR>" .$Documento->TED->DD->getRSR(). "</RSR><MNT>" . trim(decimales($total)) . "</MNT><IT1>" . $Documento->TED->DD->getIT1() ."</IT1>$CAF<TSTED>". $fechaTimbre ."</TSTED></DD>";
 					escribeLog("\tDetalle del timbre\n\t\t$DD2",$ficheroLog);
